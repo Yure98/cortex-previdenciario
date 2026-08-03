@@ -12,7 +12,9 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   const parsedId = z.string().uuid().safeParse((await context.params).id);
   if (!parsedId.success) return NextResponse.json({ erro: "Entrega inválida." }, { status: 400 });
   const admin = createSupabaseAdminClient();
-  const { data } = await admin.from("entregas").select("arquivo_path").eq("id", parsedId.data).eq("escritorio_id", identity.escritorioId).maybeSingle();
+  let query = admin.from("entregas").select("arquivo_path").eq("id", parsedId.data);
+  if (identity.papel !== "platform_admin") query = query.eq("escritorio_id", identity.escritorioId);
+  const { data } = await query.maybeSingle();
   if (!data) return NextResponse.json({ erro: "Entrega não encontrada." }, { status: 404 });
   const ttl = Math.min(900, Math.max(60, Number(process.env.ENTREGA_SIGNED_URL_TTL_SECONDS ?? 300)));
   const { data: signed, error } = await admin.storage.from("entregas").createSignedUrl(data.arquivo_path, ttl, { download: true });

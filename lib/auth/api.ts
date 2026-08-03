@@ -2,7 +2,11 @@ import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export type ApiIdentity = { userId: string; escritorioId: string };
+export type ApiIdentity = {
+  userId: string;
+  escritorioId: string;
+  papel: "proprietario" | "membro" | "platform_admin";
+};
 
 export async function getApiIdentity(): Promise<ApiIdentity | null> {
   const supabase = await createSupabaseServerClient();
@@ -11,10 +15,13 @@ export async function getApiIdentity(): Promise<ApiIdentity | null> {
 
   const { data: profile, error: profileError } = await supabase
     .from("usuarios")
-    .select("escritorio_id")
+    .select("escritorio_id,papel")
     .eq("id", data.user.id)
     .maybeSingle();
   if (profileError || !profile) return null;
-  return { userId: data.user.id, escritorioId: profile.escritorio_id as string };
+  return {
+    userId: data.user.id,
+    escritorioId: profile.escritorio_id as string,
+    papel: profile.papel as ApiIdentity["papel"],
+  };
 }
-

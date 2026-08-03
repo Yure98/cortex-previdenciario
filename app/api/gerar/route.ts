@@ -86,7 +86,7 @@ async function existingResponse(
   );
 }
 
-async function authenticatedOfficeId(): Promise<string> {
+async function authenticatedIdentity(): Promise<{ escritorioId: string; papel: "proprietario" | "membro" | "platform_admin" }> {
   const client = await createSupabaseServerClient();
   const {
     data: { user },
@@ -99,7 +99,7 @@ async function authenticatedOfficeId(): Promise<string> {
 
   const { data: profile, error: profileError } = await client
     .from("usuarios")
-    .select("escritorio_id")
+    .select("escritorio_id,papel")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -107,7 +107,8 @@ async function authenticatedOfficeId(): Promise<string> {
     throw new EngineError("ACESSO_NEGADO", "Usuário sem escritório válido.");
   }
 
-  return z.object({ escritorio_id: z.string().uuid() }).parse(profile).escritorio_id;
+  const parsed = z.object({ escritorio_id: z.string().uuid(), papel: z.enum(["proprietario", "membro", "platform_admin"]) }).parse(profile);
+  return { escritorioId: parsed.escritorio_id, papel: parsed.papel };
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -123,9 +124,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       throw new EngineError("REQUISICAO_INVALIDA", "O corpo da requisição excede 16 KB.");
     }
     const body = generationRequestSchema.parse(await request.json());
-    const escritorioId = await authenticatedOfficeId();
+    const identity = await authenticatedIdentity();
+    const escritorioId = body.escritorio_id && identity.papel === "platform_admin" ? body.escritorio_id : identity.escritorioId;
 
-    if (body.escritorio_id && body.escritorio_id !== escritorioId) {
+    if (body.escritorio_id && identity.papel !== "platform_admin" && body.escritorio_id !== identity.escritorioId) {
       throw new EngineError("ACESSO_NEGADO", "O escritório informado não pertence ao usuário.");
     }
 

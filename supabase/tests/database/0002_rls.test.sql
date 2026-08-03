@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(6);
+select plan(10);
 
 insert into auth.users (
   id,
@@ -94,6 +94,16 @@ select lives_ok(
   $$update public.usuarios set nome = 'Nome atualizado' where id = auth.uid()$$,
   'usuário pode atualizar somente seu nome pelas grants de coluna'
 );
+
+reset role;
+update public.usuarios set papel='platform_admin'::public.usuario_papel where id='10000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
+select set_config('request.jwt.claim.role','authenticated',true);
+select lives_ok($$select public.admin_atualizar_status_caso((select id from public.casos where cliente_final='Cliente B'),'producao'::public.caso_status)$$,'admin move caso cross-tenant');
+select results_eq($$select status::text from public.casos where cliente_final='Cliente B'$$,array['producao'::text],'status persistido');
+select lives_ok($$select public.admin_revisar_entrega((select e.id from public.entregas e join public.casos c on c.id=e.caso_id where c.cliente_final='Cliente B'),'aprovado'::public.qa_status,'{"identificacao":true,"fatos":true,"fundamentacao":true,"pedidos":true,"citacoes":true,"campos_conferir":true}'::jsonb,'QA',true)$$,'admin entrega cross-tenant');
+select results_eq($$select status::text from public.casos where cliente_final='Cliente B'$$,array['entregue'::text],'entrega atômica');
 
 select * from finish();
 rollback;

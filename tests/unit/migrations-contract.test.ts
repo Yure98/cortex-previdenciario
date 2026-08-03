@@ -43,6 +43,7 @@ describe("contrato das migrations", () => {
       "0010_seed_teses_tier1.sql",
       "0011_phase2_engine.sql",
       "0012_phase3_docx_delivery.sql",
+      "0013_phase5_admin_qa.sql",
     ]);
   });
 
@@ -103,4 +104,6 @@ describe("contrato das migrations", () => {
     expect(sql).toContain("'entrega_docx_gerada'");
     expect(sql).toContain("p_sha256 !~ '^[0-9a-f]{64}$'");
   });
+
+  it("protege QA administrativo por papel",()=>{expect(sql).toContain("public.admin_revisar_entrega");expect(sql).toContain("public.admin_atualizar_status_caso");expect(sql.match(/if not public\.is_platform_admin\(\) then/g)).toHaveLength(2);expect(sql).not.toMatch(/@[a-z0-9.-]+\.[a-z]{2,}/i);});
 });

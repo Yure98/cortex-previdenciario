@@ -11,6 +11,7 @@ const sessionContextSchema = z.object({
     id: z.string().uuid(),
     nome: z.string().nullable(),
     escritorio_id: z.string().uuid(),
+    papel: z.enum(["proprietario", "membro", "platform_admin"]),
   }),
   escritorio: z.object({
     id: z.string().uuid(),
@@ -37,7 +38,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 
   const { data: usuario, error: usuarioError } = await supabase
     .from("usuarios")
-    .select("id,nome,escritorio_id")
+    .select("id,nome,escritorio_id,papel")
     .eq("id", authData.user.id)
     .maybeSingle();
   if (usuarioError || !usuario) return null;
@@ -57,5 +58,11 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 export async function requireSessionContext(): Promise<SessionContext> {
   const context = await getSessionContext();
   if (!context) redirect("/entrar");
+  return context;
+}
+
+export async function requirePlatformAdmin(): Promise<SessionContext> {
+  const context = await requireSessionContext();
+  if (context.usuario.papel !== "platform_admin") redirect("/portal");
   return context;
 }

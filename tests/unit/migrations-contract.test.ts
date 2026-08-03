@@ -24,6 +24,8 @@ const rlsTables = [
   "assinaturas",
   "faturas",
   "uso_tokens",
+  "geracoes",
+  "consumos_peca",
 ];
 
 describe("contrato das migrations", () => {
@@ -39,6 +41,7 @@ describe("contrato das migrations", () => {
       "0008_private_storage.sql",
       "0009_realtime.sql",
       "0010_seed_teses_tier1.sql",
+      "0011_phase2_engine.sql",
     ]);
   });
 
@@ -65,6 +68,13 @@ describe("contrato das migrations", () => {
     expect(sql).toContain("franquia_pecas_mensal integer not null default 25");
     expect(sql).toContain("valor_excedente_centavos integer not null default 2900");
     expect(sql).toContain("valor_centavos integer not null default 39700");
+  });
+
+  it("bloqueia inadimplência e excedente não pago de forma transacional", () => {
+    expect(sql).toContain("create or replace function public.autorizar_geracao_caso");
+    expect(sql).toContain("raise exception 'INADIMPLENTE'");
+    expect(sql).toContain("raise exception 'EXCEDENTE_NAO_PAGO'");
+    expect(sql).toContain("'cortex:billing:'");
   });
 
   it("cria exatamente onze entradas Tier 1 como rascunho", () => {

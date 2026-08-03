@@ -2,16 +2,17 @@
 
 SaaS self-service para gerar peças previdenciárias em `.docx` no timbrado do escritório.
 
-Este repositório está na **Fase 1**: scaffold Next.js 14, schema Supabase, pgvector,
-RLS por escritório, Storage privado, contratos de custo e base do design system.
-O motor de IA ainda não foi implementado.
+Este repositório está na **Fase 2**: a infraestrutura da Fase 1 e o motor `/api/gerar`
+estão implementados. A geração do arquivo `.docx` entra somente na Fase 3.
 
 ## Stack
 
 - Next.js 14, App Router e TypeScript
 - Supabase Postgres, Auth, Storage, Realtime, RLS e pgvector
-- Funções Python na Vercel para o futuro `diagnostico.py` e `python-docx`
-- Anthropic, Voyage, Asaas e Resend nas fases seguintes
+- Função Python interna na Vercel para diagnóstico estrutural do CNIS
+- Anthropic Messages SDK com Haiku/Sonnet e prompt caching explícito
+- Voyage `voyage-4` com embeddings de 1.024 dimensões
+- Asaas e Resend entram funcionalmente nas fases seguintes
 - Cal Sans para display; Inter para corpo/UI; JetBrains Mono para código
 
 ## Requisitos
@@ -28,6 +29,9 @@ O motor de IA ainda não foi implementado.
 git clone --recurse-submodules <URL_DO_REPOSITORIO>
 cd cortex-previdenciario
 npm ci
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 cp .env.example .env.local
 npx supabase start
 npm run db:reset
@@ -58,6 +62,12 @@ Variáveis obrigatórias do produto:
 - `LIMITE_GASTO_MENSAL_USD`
 - `VOYAGE_API_KEY`, `MODELO_EMBEDDING=voyage-4`
 - `COTACAO_USD_BRL`, `LIMITE_CUSTO_PECA_BRL=3.00`
+- `INTERNAL_PYTHON_TOKEN` (mínimo de 32 caracteres) e `PYTHON_DIAGNOSTICO_URL`
+- preços por MTok de Sonnet, Haiku e Voyage listados no `.env.example`
+
+Os preços são configuração operacional, não segredo. Revise-os ao trocar modelos ou quando o
+provedor alterar tarifas. A reserva usa o pior caso de cache write e saída máxima; o fechamento
+usa os contadores reais devolvidos pelos provedores.
 
 A service role do Supabase é usada apenas no servidor. A anon key é pública por natureza,
 mas toda leitura continua limitada por RLS.
@@ -75,7 +85,8 @@ As migrations ficam em `supabase/migrations` e rodam em ordem:
 7. grants e RLS;
 8. buckets privados;
 9. Realtime de casos/entregas;
-10. catálogo das 11 teses Tier 1 em rascunho.
+10. catálogo das 11 teses Tier 1 em rascunho;
+11. execuções do motor, consumo de peças, locks comerciais e conclusão/falha atômicas.
 
 Execute:
 
@@ -133,8 +144,71 @@ O importador sempre força rascunho, remove embeddings recebidos e marca curador
 - Meta técnica: custo de IA inferior a R$ 3,00 por peça.
 
 `reservar_uso_tokens` usa lock transacional e contabiliza reservas pendentes antes de liberar
-uma chamada. A Fase 2 ligará esse contrato ao Haiku/Sonnet e registrará input, output,
-cache read, cache creation e custos finais em `uso_tokens`.
+cada chamada Anthropic ou Voyage. O fechamento registra input, output, cache read, cache
+creation, custo USD, cotação e custo BRL em `uso_tokens`.
+
+`autorizar_geracao_caso` usa outro lock por escritório/competência. Ele bloqueia escritório
+suspenso/inadimplente/cancelado, fatura vencida e excedente sem addon pago. As primeiras 25
+peças do mês usam a franquia; a 26ª em diante só reserva consumo quando existe unidade paga.
+
+## Motor da Fase 2
+
+`POST /api/gerar` aceita:
+
+```json
+{
+  "caso_id": "uuid",
+  "escritorio_id": "uuid-opcional-para-validacao",
+  "tipo_operacao": "peticao"
+}
+```
+
+Envie opcionalmente `Idempotency-Key: <uuid>`. O backend nunca confia no `escritorio_id` do
+corpo: resolve o tenant pela sessão Supabase, carrega o caso pelo tenant e usa service role só
+depois dessa validação.
+
+Fluxo implementado:
+
+1. pré-checagem de teto global, do escritório e da peça;
+2. lock comercial de franquia/excedente/inadimplência;
+3. signed URL de 90 segundos para o CNIS privado;
+4. Python extrai períodos, remunerações e indicadores e calcula dias sem sobreposição;
+5. Haiku classifica o caso em benefício e vocabulário RAG fechado;
+6. Voyage recebe exclusivamente `benefício + palavras-chave` de-identificados;
+7. pgvector recupera de uma a três teses ativas;
+8. Sonnet analisa, redige e revisa; se reprovar, corrige e executa o segundo e último ciclo;
+9. a minuta e a revisão ficam em `geracoes`, o caso vai para `qa` e o consumo é concluído.
+
+Os prompts jurídicos são lidos literalmente do submódulo `cortex-agentes`. O bloco estático
+de skill/referências recebe `cache_control: { type: "ephemeral" }`; o caso fica em bloco
+dinâmico separado e não cacheado. O motor não imprime conteúdo do caso nem URLs assinadas.
+
+Nesta fase a resposta é metadado de QA e custo, sem expor o texto integral. O `.docx` privado
+e sua signed URL serão adicionados na Fase 3.
+
+## Diagnóstico determinístico do CNIS
+
+`api/diagnostico.py` é uma função interna protegida por token. Ela só baixa URLs assinadas do
+host Supabase configurado e do caminho `cnis`, limita o PDF a 12 MB e nunca registra corpo ou
+URL. CPF, NIT, nome e texto bruto são descartados da saída. PDFs escaneados sem camada de texto
+retornam `CNIS_INVALIDO`; OCR não foi presumido nem adicionado ao escopo.
+
+O cálculo é deliberadamente estrutural: união de intervalos, dias inclusivos, corte em
+13/11/2019, concomitâncias, lacunas e competências encontradas. Decisão jurídica e campos
+ausentes permanecem nas skills e são sinalizados para confirmação humana.
+
+## Indexação e ativação das teses
+
+Para gerar embeddings do conteúdo público das 11 teses:
+
+```bash
+npm run teses:embeddings
+```
+
+O script envia apenas a ficha pública ao Voyage e grava `vector(1024)`. Ele não ativa teses.
+`match_teses` continua aceitando somente `status = ativa`; portanto, uma ficha com
+`[CONFERIR]` deve passar por curadoria humana antes da ativação. Se nenhuma tese ativa existir
+para a categoria, o motor falha fechado com `RAG_SEM_TESES_ATIVAS`, sem improvisar fundamento.
 
 Setup, carência, franquia e excedente ficam em colunas protegidas de `escritorios`; clientes
 não recebem `GRANT` para modificar esses valores pelo navegador.
@@ -169,7 +243,7 @@ o domínio remetente no Resend. O webhook nunca confiará apenas no corpo recebi
 2. Configure todas as variáveis de `.env.example` separadamente para Preview e Production.
 3. Use Node.js 20 ou superior.
 4. Execute o build padrão `npm run build`.
-5. Valide `/api/python_health` para confirmar o runtime Python.
+5. Valide `/api/python_health` e a função interna `/api/diagnostico`.
 6. Não exponha `SUPABASE_SERVICE_ROLE`, chaves Anthropic/Voyage ou tokens Asaas ao browser.
 
 ## DNS na Hostinger

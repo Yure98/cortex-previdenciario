@@ -3,6 +3,9 @@
   "functions": {
     "api/python_health.py": {
       "maxDuration": 10
+    },
+    "api/diagnostico.py": {
+      "maxDuration": 60
     }
   }
 }

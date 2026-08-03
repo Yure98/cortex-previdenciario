@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(22);
+select plan(28);
 
 select has_extension('vector', 'pgvector está habilitado');
 select has_table('public', 'escritorios', 'tabela escritorios existe');
@@ -16,12 +16,38 @@ select has_table('public', 'caso_teses', 'tabela caso_teses existe');
 select has_table('public', 'uso_tokens', 'tabela uso_tokens existe');
 select has_table('public', 'assinaturas', 'tabela assinaturas existe');
 select has_table('public', 'faturas', 'tabela faturas existe');
+select has_table('public', 'geracoes', 'tabela geracoes existe');
+select has_table('public', 'consumos_peca', 'tabela consumos de peça existe');
 
 select has_function(
   'public',
   'match_teses',
   array['vector', 'text', 'integer'],
   'função de busca semântica existe'
+);
+select has_function(
+  'public',
+  'checar_teto_geracao',
+  array['uuid', 'uuid', 'numeric', 'numeric'],
+  'pré-checagem de teto existe'
+);
+select has_function(
+  'public',
+  'autorizar_geracao_caso',
+  array['uuid', 'uuid', 'uuid'],
+  'autorização comercial atômica existe'
+);
+select has_function(
+  'public',
+  'concluir_geracao_motor',
+  array['uuid', 'numeric', 'numeric'],
+  'conclusão atômica do motor existe'
+);
+select has_function(
+  'public',
+  'falhar_geracao_motor',
+  array['uuid', 'text', 'text'],
+  'falha atômica do motor existe'
 );
 select has_function(
   'public',
@@ -55,11 +81,12 @@ select results_eq(
       and c.relname in (
         'escritorios', 'usuarios', 'modelos_escritorio', 'casos', 'documentos',
         'entregas', 'auditoria', 'feedback', 'teses', 'jurisprudencia',
-        'caso_teses', 'assinaturas', 'faturas', 'uso_tokens'
+        'caso_teses', 'assinaturas', 'faturas', 'uso_tokens', 'geracoes',
+        'consumos_peca'
       )
       and c.relrowsecurity
   $$,
-  array[14::bigint],
+  array[16::bigint],
   'RLS está habilitado em todas as tabelas públicas'
 );
 

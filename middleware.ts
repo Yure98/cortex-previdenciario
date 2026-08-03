@@ -19,7 +19,7 @@ export async function middleware(request: NextRequest) {
   });
 
   const { data } = await supabase.auth.getUser();
-  const protectedPath = request.nextUrl.pathname.startsWith("/portal");
+  const protectedPath = request.nextUrl.pathname.startsWith("/portal") || request.nextUrl.pathname.startsWith("/admin");
   const authPath = request.nextUrl.pathname === "/entrar";
 
   if (protectedPath && !data.user) {
@@ -38,5 +38,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/portal/:path*", "/entrar"],
+  matcher: ["/portal/:path*", "/admin/:path*", "/entrar"],
 };

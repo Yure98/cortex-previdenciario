@@ -1,0 +1,3 @@
+import{readFileSync}from"node:fs";import{join}from"node:path";import{describe,expect,it}from"vitest";
+const source=["lib/auth/session.ts","lib/auth/api.ts","app/admin/layout.tsx","app/admin/actions.ts","app/api/gerar/route.ts"].map(f=>readFileSync(join(process.cwd(),f),"utf8")).join("\n");
+describe("admin",()=>{it("usa platform_admin",()=>{expect(source).toContain("requirePlatformAdmin");expect(source).toContain('papel !== "platform_admin"');expect(source).toContain('papel === "platform_admin"')});it("não autoriza por email",()=>expect(source).not.toMatch(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i));});

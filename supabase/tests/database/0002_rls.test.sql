@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(6);
+select plan(10);
 
 insert into auth.users (
   id,
@@ -45,20 +45,20 @@ insert into auth.users (
     now()
   );
 
-insert into public.casos (escritorio_id, cliente_final, beneficio, tipo_peca)
-select escritorio_id, 'Cliente A', 'incapacidade', 'peticao'
+insert into public.casos (id, escritorio_id, cliente_final, beneficio, tipo_peca)
+select '30000000-0000-0000-0000-000000000003', escritorio_id, 'Cliente A', 'incapacidade', 'peticao'
 from public.usuarios where id = '10000000-0000-0000-0000-000000000001';
 
-insert into public.casos (escritorio_id, cliente_final, beneficio, tipo_peca)
-select escritorio_id, 'Cliente B', 'rural', 'peticao'
+insert into public.casos (id, escritorio_id, cliente_final, beneficio, tipo_peca)
+select '40000000-0000-0000-0000-000000000004', escritorio_id, 'Cliente B', 'rural', 'peticao'
 from public.usuarios where id = '20000000-0000-0000-0000-000000000002';
 
-insert into public.entregas (escritorio_id, caso_id, arquivo_path)
-select escritorio_id, id, escritorio_id::text || '/' || id::text || '/entrega-a.docx'
+insert into public.entregas (id, escritorio_id, caso_id, arquivo_path)
+select '50000000-0000-0000-0000-000000000005', escritorio_id, id, escritorio_id::text || '/' || id::text || '/entrega-a.docx'
 from public.casos where cliente_final = 'Cliente A';
 
-insert into public.entregas (escritorio_id, caso_id, arquivo_path)
-select escritorio_id, id, escritorio_id::text || '/' || id::text || '/entrega-b.docx'
+insert into public.entregas (id, escritorio_id, caso_id, arquivo_path)
+select '60000000-0000-0000-0000-000000000006', escritorio_id, id, escritorio_id::text || '/' || id::text || '/entrega-b.docx'
 from public.casos where cliente_final = 'Cliente B';
 
 set local role authenticated;
@@ -94,6 +94,19 @@ select lives_ok(
   $$update public.usuarios set nome = 'Nome atualizado' where id = auth.uid()$$,
   'usuário pode atualizar somente seu nome pelas grants de coluna'
 );
+
+reset role;
+update public.usuarios set papel='platform_admin'::public.usuario_papel where id='10000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
+select set_config('request.jwt.claim.role','authenticated',true);
+select lives_ok($$select public.admin_atualizar_status_caso('40000000-0000-0000-0000-000000000004','producao'::public.caso_status)$$,'admin move caso cross-tenant');
+reset role;
+select results_eq($$select status::text from public.casos where id='40000000-0000-0000-0000-000000000004'$$,array['producao'::text],'status persistido');
+set local role authenticated;
+select lives_ok($$select public.admin_revisar_entrega('60000000-0000-0000-0000-000000000006','aprovado'::public.qa_status,'{"identificacao":true,"fatos":true,"fundamentacao":true,"pedidos":true,"citacoes":true,"campos_conferir":true}'::jsonb,'QA',true)$$,'admin entrega cross-tenant');
+reset role;
+select results_eq($$select status::text from public.casos where id='40000000-0000-0000-0000-000000000004'$$,array['entregue'::text],'entrega atômica');
 
 select * from finish();
 rollback;

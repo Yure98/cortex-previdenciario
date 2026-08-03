@@ -2,10 +2,11 @@
 
 SaaS self-service para gerar peças previdenciárias em `.docx` no timbrado do escritório.
 
-As **Fases 1 a 4 estão concluídas localmente**: infraestrutura multi-tenant, motor de IA em três
+As **Fases 1 a 5 estão concluídas localmente**: infraestrutura multi-tenant, motor de IA em três
 camadas, RAG com guardrail LGPD, geração DOCX tradicional/Visual Law e entrega privada por
 signed URL, além do portal autenticado do advogado, estão implementados e validados. O baseline
-foi migrado para Next.js 15 antes da superfície de autenticação.
+foi migrado para Next.js 15 antes da superfície de autenticação. A Fase 5 adiciona o painel
+administrativo, a fila Kanban e o gate humano de QA.
 
 ## Stack
 
@@ -90,7 +91,8 @@ As migrations ficam em `supabase/migrations` e rodam em ordem:
 9. Realtime de casos/entregas;
 10. catálogo das 11 teses Tier 1 em rascunho;
 11. execuções do motor, consumo de peças, locks comerciais e conclusão/falha atômicas.
-12. metadados DOCX, hash/preflight e conclusão transacional da entrega.
+12. metadados DOCX, hash/preflight e conclusão transacional da entrega;
+13. autorização administrativa, QA e entrega auditada.
 
 Execute:
 
@@ -108,8 +110,8 @@ do outro.
 - Toda tabela com dados de cliente carrega `escritorio_id`.
 - Relações sensíveis usam foreign keys compostas `(id, escritorio_id)`.
 - O navegador não recebe permissão para alterar papel, plano, cobrança, status, teto ou uso.
-- O painel administrativo futuramente usará service role somente depois de validar
-  `platform_admin` no servidor.
+- O painel administrativo usa service role somente depois de validar `platform_admin` no
+  servidor; mutações de QA repetem a validação no PostgreSQL.
 - Caminhos de Storage começam com o UUID do escritório.
 - `entregas` não possui policy de download para o cliente. O backend emitirá signed URL curta.
 - Os buckets `cnis`, `timbrados` e `entregas` têm `public = false`.

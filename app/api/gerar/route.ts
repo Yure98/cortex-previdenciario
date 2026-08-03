@@ -86,7 +86,7 @@ async function existingResponse(
 }
 
 async function authenticatedOfficeId(): Promise<string> {
-  const client = createSupabaseServerClient();
+  const client = await createSupabaseServerClient();
   const {
     data: { user },
     error: authError,

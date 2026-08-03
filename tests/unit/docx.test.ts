@@ -203,4 +203,25 @@ describe("geração DOCX da Fase 3", () => {
     expect(report.report.normalizedEntryNames).toBeGreaterThan(0);
     expect(report.zip.file("word/document.xml")).not.toBeNull();
   });
+
+  it("rejeita DTD, entidades e XML malformado no template", async () => {
+    const source = await JSZip.loadAsync(await templateBuffer());
+    const documentXml = await source.file("word/document.xml")!.async("string");
+
+    source.file(
+      "word/document.xml",
+      documentXml.replace(
+        "?>",
+        "?><!DOCTYPE document [<!ENTITY segredo SYSTEM 'file:///etc/passwd'>]>",
+      ),
+    );
+    await expect(
+      preflightTemplate(await source.generateAsync({ type: "nodebuffer" })),
+    ).rejects.toMatchObject({ code: "TIMBRADO_INVALIDO" });
+
+    source.file("word/document.xml", documentXml.replace("</w:document>", ""));
+    await expect(
+      preflightTemplate(await source.generateAsync({ type: "nodebuffer" })),
+    ).rejects.toMatchObject({ code: "TIMBRADO_INVALIDO" });
+  });
 });

@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(5);
+select plan(6);
 
 insert into auth.users (
   id,
@@ -53,6 +53,14 @@ insert into public.casos (escritorio_id, cliente_final, beneficio, tipo_peca)
 select escritorio_id, 'Cliente B', 'rural', 'peticao'
 from public.usuarios where id = '20000000-0000-0000-0000-000000000002';
 
+insert into public.entregas (escritorio_id, caso_id, arquivo_path)
+select escritorio_id, id, escritorio_id::text || '/' || id::text || '/entrega-a.docx'
+from public.casos where cliente_final = 'Cliente A';
+
+insert into public.entregas (escritorio_id, caso_id, arquivo_path)
+select escritorio_id, id, escritorio_id::text || '/' || id::text || '/entrega-b.docx'
+from public.casos where cliente_final = 'Cliente B';
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -61,6 +69,11 @@ select results_eq(
   $$select count(*)::bigint from public.escritorios$$,
   array[1::bigint],
   'usuário vê somente o próprio escritório'
+);
+select results_eq(
+  $$select count(*)::bigint from public.entregas$$,
+  array[1::bigint],
+  'usuário vê somente a entrega do próprio escritório'
 );
 select results_eq(
   $$select count(*)::bigint from public.casos$$,

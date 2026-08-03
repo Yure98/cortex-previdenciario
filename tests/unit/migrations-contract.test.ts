@@ -42,6 +42,7 @@ describe("contrato das migrations", () => {
       "0009_realtime.sql",
       "0010_seed_teses_tier1.sql",
       "0011_phase2_engine.sql",
+      "0012_phase3_docx_delivery.sql",
     ]);
   });
 
@@ -94,5 +95,12 @@ describe("contrato das migrations", () => {
     expect(storageMigration).not.toMatch(
       /create policy[\s\S]*?on storage\.objects[\s\S]*?bucket_id = 'entregas'/,
     );
+  });
+
+  it("registra entrega DOCX e conclui a geração na mesma transação", () => {
+    expect(sql).toContain("create or replace function public.registrar_entrega_concluir_geracao");
+    expect(sql).toContain("entregas_geracao_unica_idx");
+    expect(sql).toContain("'entrega_docx_gerada'");
+    expect(sql).toContain("p_sha256 !~ '^[0-9a-f]{64}$'");
   });
 });

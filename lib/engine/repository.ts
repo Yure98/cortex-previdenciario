@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 import { EngineError, normalizeEngineError } from "@/lib/engine/errors";
 import type { GenerationCase } from "@/lib/engine/schemas";
 import type { ProgressStage } from "@/lib/engine/pipeline";
+import type { GeneratedDocx, OfficeDocumentConfig } from "@/lib/docx/types";
 
 const generationCaseSchema = z.object({
   id: z.string().uuid(),
@@ -31,6 +32,23 @@ const existingGenerationSchema = z.object({
   custo_usd: z.coerce.number(),
   custo_brl: z.coerce.number(),
   erro_codigo: z.string().nullable(),
+});
+
+const officeDocumentSchema = z.object({
+  id: z.string().uuid(),
+  nome: z.string(),
+  oab: z.string().nullable(),
+  cidade: z.string().nullable(),
+  timbrado_path: z.string().nullable(),
+  cor_primaria: z.string(),
+  cor_secundaria: z.string(),
+  cor_acento: z.string(),
+});
+
+const deliverySchema = z.object({
+  id: z.string().uuid(),
+  arquivo_path: z.string().min(1),
+  nome_arquivo: z.string().min(1),
 });
 
 export type ExistingGeneration = z.infer<typeof existingGenerationSchema>;
@@ -85,6 +103,44 @@ export class EngineRepository {
       throw new EngineError("CASO_NAO_ENCONTRADO", "Caso não encontrado.");
     }
     return generationCaseSchema.parse(data);
+  }
+
+  async loadOfficeDocumentConfig(escritorioId: string): Promise<OfficeDocumentConfig> {
+    const { data, error } = await this.admin
+      .from("escritorios")
+      .select("id,nome,oab,cidade,timbrado_path,cor_primaria,cor_secundaria,cor_acento")
+      .eq("id", escritorioId)
+      .maybeSingle();
+    if (error || !data) {
+      throw new EngineError("ERRO_INTERNO", "Não foi possível carregar o timbrado do escritório.", {
+        cause: error,
+      });
+    }
+    const parsed = officeDocumentSchema.parse(data);
+    return {
+      id: parsed.id,
+      nome: parsed.nome,
+      oab: parsed.oab,
+      cidade: parsed.cidade,
+      timbradoPath: parsed.timbrado_path,
+      corPrimaria: parsed.cor_primaria,
+      corSecundaria: parsed.cor_secundaria,
+      corAcento: parsed.cor_acento,
+    };
+  }
+
+  async downloadOfficeTemplate(config: OfficeDocumentConfig): Promise<Buffer | null> {
+    if (!config.timbradoPath) return null;
+    if (!config.timbradoPath.startsWith(`${config.id}/`)) {
+      throw new EngineError("TIMBRADO_INVALIDO", "O caminho do timbrado é inválido.");
+    }
+    const { data, error } = await this.admin.storage.from("timbrados").download(config.timbradoPath);
+    if (error || !data) {
+      throw new EngineError("TIMBRADO_INVALIDO", "Não foi possível abrir o timbrado privado.", {
+        cause: error,
+      });
+    }
+    return Buffer.from(await data.arrayBuffer());
   }
 
   async precheckSpendCap(
@@ -216,17 +272,76 @@ export class EngineRepository {
     return { usd, brl: usd * usdBrlRate };
   }
 
-  async complete(geracaoId: string, costs: CompleteCosts): Promise<void> {
-    const { error } = await this.admin.rpc("concluir_geracao_motor", {
+  async publishDelivery(
+    geracaoId: string,
+    delivery: GeneratedDocx,
+    costs: CompleteCosts,
+  ): Promise<string> {
+    const { error: uploadError } = await this.admin.storage
+      .from("entregas")
+      .upload(delivery.storagePath, delivery.buffer, {
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        cacheControl: "private, max-age=0, no-store",
+        upsert: true,
+      });
+    if (uploadError) {
+      throw new EngineError("ERRO_INTERNO", "Não foi possível salvar a entrega privada.", {
+        cause: uploadError,
+      });
+    }
+
+    const { data, error } = await this.admin.rpc("registrar_entrega_concluir_geracao", {
       p_geracao_id: geracaoId,
+      p_arquivo_path: delivery.storagePath,
+      p_nome_arquivo: delivery.fileName,
+      p_tamanho_bytes: delivery.buffer.byteLength,
+      p_sha256: delivery.sha256,
+      p_preflight: delivery.preflight ?? {},
       p_custo_usd: costs.usd,
       p_custo_brl: costs.brl,
     });
-    if (error) {
-      throw new EngineError("ERRO_INTERNO", "Não foi possível concluir a geração.", {
+    if (error || !data) {
+      throw new EngineError("ERRO_INTERNO", "Não foi possível registrar a entrega.", {
         cause: error,
       });
     }
+    return z.string().uuid().parse(data);
+  }
+
+  async getDeliveryByGeneration(geracaoId: string, escritorioId: string) {
+    const { data, error } = await this.admin
+      .from("entregas")
+      .select("id,arquivo_path,nome_arquivo")
+      .eq("geracao_id", geracaoId)
+      .eq("escritorio_id", escritorioId)
+      .maybeSingle();
+    if (error) {
+      throw new EngineError("ERRO_INTERNO", "Não foi possível consultar a entrega.", {
+        cause: error,
+      });
+    }
+    if (!data) {
+      throw new EngineError("ENTREGA_NAO_ENCONTRADA", "A entrega ainda não está disponível.");
+    }
+    return deliverySchema.parse(data);
+  }
+
+  async createSignedDeliveryUrl(
+    arquivoPath: string,
+    expiresInSeconds: number,
+  ): Promise<{ signedUrl: string; expiresAt: string }> {
+    const { data, error } = await this.admin.storage
+      .from("entregas")
+      .createSignedUrl(arquivoPath, expiresInSeconds, { download: true });
+    if (error || !data?.signedUrl) {
+      throw new EngineError("ENTREGA_NAO_ENCONTRADA", "Não foi possível assinar o download.", {
+        cause: error,
+      });
+    }
+    return {
+      signedUrl: data.signedUrl,
+      expiresAt: new Date(Date.now() + expiresInSeconds * 1_000).toISOString(),
+    };
   }
 
   async fail(geracaoId: string, code: string, detail: string): Promise<void> {

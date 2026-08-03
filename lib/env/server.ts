@@ -24,6 +24,7 @@ const serverEnvironmentSchema = z.object({
   VOYAGE_API_KEY: z.string().min(1),
   MODELO_EMBEDDING: z.literal("voyage-4"),
   PRECO_VOYAGE_INPUT_USD_MTOK: z.coerce.number().positive(),
+  ENTREGA_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),
 });
 
 const engineEnvironmentSchema = serverEnvironmentSchema.pick({
@@ -46,6 +47,7 @@ const engineEnvironmentSchema = serverEnvironmentSchema.pick({
   VOYAGE_API_KEY: true,
   MODELO_EMBEDDING: true,
   PRECO_VOYAGE_INPUT_USD_MTOK: true,
+  ENTREGA_SIGNED_URL_TTL_SECONDS: true,
 });
 
 export type ServerEnvironment = z.infer<typeof serverEnvironmentSchema>;

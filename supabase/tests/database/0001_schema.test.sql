@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(28);
+select plan(32);
 
 select has_extension('vector', 'pgvector está habilitado');
 select has_table('public', 'escritorios', 'tabela escritorios existe');
@@ -24,6 +24,12 @@ select has_function(
   'match_teses',
   array['vector', 'text', 'integer'],
   'função de busca semântica existe'
+);
+select has_function(
+  'public',
+  'registrar_entrega_concluir_geracao',
+  array['uuid', 'text', 'text', 'bigint', 'text', 'jsonb', 'numeric', 'numeric'],
+  'registro e conclusão atômica da entrega existem'
 );
 select has_function(
   'public',
@@ -101,6 +107,9 @@ select col_default_is(
   '30',
   'primeira mensalidade começa após 30 dias'
 );
+select has_column('public', 'entregas', 'geracao_id', 'entrega referencia a geração');
+select has_column('public', 'entregas', 'sha256', 'entrega registra hash SHA-256');
+select has_column('public', 'entregas', 'preflight', 'entrega registra preflight estrutural');
 
 select * from finish();
 rollback;

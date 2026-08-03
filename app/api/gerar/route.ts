@@ -13,6 +13,8 @@ import { generationRequestSchema } from "@/lib/engine/schemas";
 import { SupabaseUsageLedger } from "@/lib/engine/usage-ledger";
 import { DeidentifiedVoyageClient } from "@/lib/engine/voyage";
 import { getEngineEnvironment } from "@/lib/env/server";
+import { generateDeliveryDocx } from "@/lib/docx/generator";
+import { preflightTemplate } from "@/lib/docx/preflight";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -29,8 +31,18 @@ function jsonNoStore(body: unknown, init?: ResponseInit): NextResponse {
   return NextResponse.json(body, { ...init, headers });
 }
 
-function existingResponse(generation: ExistingGeneration): NextResponse {
+async function existingResponse(
+  generation: ExistingGeneration,
+  repository: EngineRepository,
+  escritorioId: string,
+  signedUrlTtlSeconds: number,
+): Promise<NextResponse> {
   if (generation.status === "concluida") {
+    const delivery = await repository.getDeliveryByGeneration(generation.id, escritorioId);
+    const access = await repository.createSignedDeliveryUrl(
+      delivery.arquivo_path,
+      signedUrlTtlSeconds,
+    );
     return jsonNoStore({
       geracao_id: generation.id,
       caso_id: generation.caso_id,
@@ -39,6 +51,9 @@ function existingResponse(generation: ExistingGeneration): NextResponse {
       custo_brl: generation.custo_brl,
       teses: generation.teses_aplicadas,
       revisao: generation.revisao,
+      arquivo_url: access.signedUrl,
+      arquivo_nome: delivery.nome_arquivo,
+      arquivo_expira_em: access.expiresAt,
       idempotente: true,
     });
   }
@@ -126,10 +141,21 @@ export async function POST(request: Request): Promise<NextResponse> {
           "A chave de idempotência já pertence a outro caso.",
         );
       }
-      return existingResponse(existing);
+      return existingResponse(
+        existing,
+        repository,
+        escritorioId,
+        environment.ENTREGA_SIGNED_URL_TTL_SECONDS,
+      );
     }
 
     const caso = await repository.loadCase(body.caso_id, escritorioId);
+    const escritorio = await repository.loadOfficeDocumentConfig(escritorioId);
+    const templateBuffer = await repository.downloadOfficeTemplate(escritorio);
+    if (templateBuffer) {
+      // Falha antes de reservar franquia ou gastar tokens se o template não for utilizável.
+      await preflightTemplate(templateBuffer);
+    }
     const pieceLimitUsd = environment.LIMITE_CUSTO_PECA_BRL / environment.COTACAO_USD_BRL;
 
     // Pré-checagem sem reserva: impede iniciar parsing quando o teto já acabou.
@@ -206,8 +232,21 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
     );
 
+    const delivery = await generateDeliveryDocx(
+      {
+        caso,
+        resultado: result,
+        escritorio,
+        geracaoId,
+      },
+      templateBuffer,
+    );
     const costs = await repository.calculateCosts(requestId, environment.COTACAO_USD_BRL);
-    await repository.complete(geracaoId, costs);
+    await repository.publishDelivery(geracaoId, delivery, costs);
+    const access = await repository.createSignedDeliveryUrl(
+      delivery.storagePath,
+      environment.ENTREGA_SIGNED_URL_TTL_SECONDS,
+    );
 
     return jsonNoStore({
       geracao_id: geracaoId,
@@ -216,6 +255,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       custo_usd: costs.usd,
       custo_brl: costs.brl,
       dentro_teto_peca: costs.brl <= environment.LIMITE_CUSTO_PECA_BRL,
+      arquivo_url: access.signedUrl,
+      arquivo_nome: delivery.fileName,
+      arquivo_expira_em: access.expiresAt,
+      timbrado_aplicado: delivery.usedTemplate,
+      avisos_timbrado: delivery.preflight?.warnings ?? [],
       teses: result.teses.map(({ id, slug, titulo, similaridade }) => ({
         id,
         slug,

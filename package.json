@@ -19,6 +19,7 @@
     "db:reset": "supabase db reset",
     "teses:importar": "tsx scripts/importar-teses.ts",
     "teses:embeddings": "tsx scripts/gerar-embeddings-teses.ts",
+    "docx:qa": "node --import tsx scripts/qa-fase3-docx.ts",
     "python:check": "python3 -m py_compile api/python_health.py api/diagnostico.py scripts/cnis_diagnostico.py",
     "test:python": "python3 -m unittest discover -s tests/python -p 'test_*.py'",
     "check": "npm run lint && npm run typecheck && npm run test && npm run test:python && npm run sql:lint && npm run python:check && npm run build"
@@ -30,6 +31,9 @@
     "@supabase/ssr": "0.7.0",
     "@supabase/supabase-js": "2.57.4",
     "cal-sans": "1.0.1",
+    "docx": "^9.6.1",
+    "fast-xml-parser": "^5.2.5",
+    "jszip": "^3.10.1",
     "next": "14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1",

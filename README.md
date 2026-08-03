@@ -2,8 +2,9 @@
 
 SaaS self-service para gerar peças previdenciárias em `.docx` no timbrado do escritório.
 
-Este repositório está na **Fase 2**: a infraestrutura da Fase 1 e o motor `/api/gerar`
-estão implementados. A geração do arquivo `.docx` entra somente na Fase 3.
+Este repositório está com a **Fase 3 concluída**: infraestrutura, motor `/api/gerar`,
+geração DOCX tradicional/Visual Law e entrega privada estão implementados. O portal e a
+autenticação de produto entram na Fase 4, após a decisão conjunta sobre Next.js 15.
 
 ## Stack
 
@@ -62,6 +63,7 @@ Variáveis obrigatórias do produto:
 - `LIMITE_GASTO_MENSAL_USD`
 - `VOYAGE_API_KEY`, `MODELO_EMBEDDING=voyage-4`
 - `COTACAO_USD_BRL`, `LIMITE_CUSTO_PECA_BRL=3.00`
+- `ENTREGA_SIGNED_URL_TTL_SECONDS=300` (aceita de 60 a 900 segundos)
 - `INTERNAL_PYTHON_TOKEN` (mínimo de 32 caracteres) e `PYTHON_DIAGNOSTICO_URL`
 - preços por MTok de Sonnet, Haiku e Voyage listados no `.env.example`
 
@@ -87,6 +89,7 @@ As migrations ficam em `supabase/migrations` e rodam em ordem:
 9. Realtime de casos/entregas;
 10. catálogo das 11 teses Tier 1 em rascunho;
 11. execuções do motor, consumo de peças, locks comerciais e conclusão/falha atômicas.
+12. metadados DOCX, hash/preflight e conclusão transacional da entrega.
 
 Execute:
 
@@ -96,7 +99,8 @@ npm run sql:lint
 npm run test:sql
 ```
 
-Os testes pgTAP criam dois escritórios e comprovam que um usuário não lê o caso do outro.
+Os testes pgTAP criam dois escritórios e comprovam que um usuário não lê o caso nem a entrega
+do outro.
 
 ## Segurança multi-tenant
 
@@ -177,14 +181,47 @@ Fluxo implementado:
 6. Voyage recebe exclusivamente `benefício + palavras-chave` de-identificados;
 7. pgvector recupera de uma a três teses ativas;
 8. Sonnet analisa, redige e revisa; se reprovar, corrige e executa o segundo e último ciclo;
-9. a minuta e a revisão ficam em `geracoes`, o caso vai para `qa` e o consumo é concluído.
+9. o gerador Node cria a peça tradicional ou Visual Law, preservando o timbrado por patch
+   OOXML ou usando um fallback limpo;
+10. a entrega é validada, enviada ao bucket privado e registrada junto da conclusão da
+    geração; a resposta contém uma signed URL curta e nunca uma URL pública.
 
 Os prompts jurídicos são lidos literalmente do submódulo `cortex-agentes`. O bloco estático
 de skill/referências recebe `cache_control: { type: "ephemeral" }`; o caso fica em bloco
 dinâmico separado e não cacheado. O motor não imprime conteúdo do caso nem URLs assinadas.
 
-Nesta fase a resposta é metadado de QA e custo, sem expor o texto integral. O `.docx` privado
-e sua signed URL serão adicionados na Fase 3.
+A resposta não expõe o texto integral. Ela devolve metadados de QA/custo, nome sanitizado,
+signed URL, expiração, indicação de uso do timbrado e advertências do preflight. Repetir uma
+requisição concluída com a mesma chave de idempotência emite uma nova signed URL curta.
+
+## DOCX e timbrado — Fase 3
+
+A estratégia é híbrida e inteiramente Node:
+
+- `docx` cria os blocos da peça e o documento de fallback;
+- JSZip aplica um patch OOXML no parágrafo `{{CONTEUDO_PETICAO}}`;
+- header, footer, logo, marca-d'água, margens e demais parts do timbrado são preservados;
+- o preflight aceita marcador dividido entre runs, normaliza separadores ZIP e medidas OOXML
+  inválidas em uma cópia de trabalho e nunca sobrescreve o upload original;
+- macros, ActiveX, embeddings, path traversal, marcadores ambíguos e pacotes acima dos limites
+  são rejeitados antes de franquia ou gasto de tokens.
+
+O nome final segue `peticao_[cliente_sanitizado]_[AAAA-MM-DD].docx`. O objeto fica em
+`entregas/{escritorio}/{caso}/{geracao}/{arquivo}`; a URL assinada não é persistida.
+
+O formato Visual Law acrescenta sumário executivo, quadro visual, linha do tempo contributiva,
+tabela de provas/pendências e alertas, sem alterar o método jurídico das skills. Campos
+`[CONFERIR]` permanecem destacados e a revisão humana é obrigatória.
+
+Para reproduzir a matriz de QA com conteúdo sintético:
+
+```bash
+npm run docx:qa -- caminho/timbrado.docx caminho/saida
+```
+
+Templates com variantes de cabeçalho recebem o aviso
+`CABECALHO_COM_VARIANTES_REVISAR_PREVIEW`. No onboarding da Fase 4, o escritório será orientado
+a revisar possível sobreposição; o produto não redesenha automaticamente o timbrado.
 
 ## Diagnóstico determinístico do CNIS
 

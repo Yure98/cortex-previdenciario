@@ -1,0 +1,1 @@
+# As dependencias de diagnostico.py e python-docx entram nas Fases 2 e 3.

@@ -1,0 +1,4 @@
+[submodule "packages/cortex-agentes"]
+	path = packages/cortex-agentes
+	url = https://github.com/Yure98/cortex-agentes.git
+	branch = main

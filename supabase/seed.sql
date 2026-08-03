@@ -1,0 +1,2 @@
+-- Os 11 registros Tier 1 são criados pela migration 0010 como rascunhos.
+-- Embeddings e ativação exigem curadoria humana e entram na Fase 2.

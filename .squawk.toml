@@ -1,0 +1,10 @@
+# O schema nasce vazio no MVP. Índices e FKs destas migrations não disputam lock
+# com tráfego de produção; as regras abaixo voltam a ser avaliadas em alterações futuras.
+excluded_rules = [
+  "prefer-robust-stmts",
+  "require-concurrent-index-creation",
+  "prefer-bigint-over-int",
+  "prefer-bigint-over-smallint",
+  "constraint-missing-not-valid",
+  "adding-foreign-key-constraint",
+]

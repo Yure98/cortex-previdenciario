@@ -1,0 +1,29 @@
+.button {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  font-family: "Inter Variable", Inter, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.button:active:not(:disabled) {
+  background: var(--color-primary-active);
+}
+
+.button:disabled {
+  color: var(--color-muted);
+  background: var(--color-primary-disabled);
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}

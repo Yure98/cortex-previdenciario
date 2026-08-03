@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { XMLValidator } from "fast-xml-parser";
+import { SaxesParser } from "saxes";
 
 import { EngineError } from "@/lib/engine/errors";
 import type { DocxPreflightReport } from "@/lib/docx/types";
@@ -52,9 +52,26 @@ function assertXml(part: string, xml: string): void {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) {
     throw docxInvalid(`A parte ${part} contém declaração XML não permitida.`);
   }
-  const validation = XMLValidator.validate(xml);
-  if (validation !== true) {
-    throw docxInvalid(`A parte ${part} contém XML inválido.`, validation);
+  try {
+    new SaxesParser({ xmlns: true }).write(xml).close();
+  } catch (error) {
+    throw docxInvalid(`A parte ${part} contém XML inválido.`, error);
+  }
+}
+
+function assertGeneratedXml(part: string, xml: string): void {
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) {
+    throw new EngineError(
+      "DOCX_INVALIDO",
+      `O DOCX gerado contém declaração XML não permitida em ${part}.`,
+    );
+  }
+  try {
+    new SaxesParser({ xmlns: true }).write(xml).close();
+  } catch (error) {
+    throw new EngineError("DOCX_INVALIDO", `O DOCX gerado contém XML inválido em ${part}.`, {
+      cause: error,
+    });
   }
 }
 
@@ -236,12 +253,7 @@ export async function validateGeneratedDocx(buffer: Buffer): Promise<void> {
   }
   for (const name of Object.keys(zip.files).filter((value) => /\.(xml|rels)$/.test(value))) {
     const xml = await zip.file(name)!.async("string");
-    const validation = XMLValidator.validate(xml);
-    if (validation !== true) {
-      throw new EngineError("DOCX_INVALIDO", `O DOCX gerado contém XML inválido em ${name}.`, {
-        cause: validation,
-      });
-    }
+    assertGeneratedXml(name, xml);
   }
   const documentXml = await zip.file("word/document.xml")!.async("string");
   if (documentXml.includes(MARKER) || documentXml.includes("CONTEUDO_PETICAO")) {

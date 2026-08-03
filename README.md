@@ -2,13 +2,14 @@
 
 SaaS self-service para gerar peças previdenciárias em `.docx` no timbrado do escritório.
 
-Este repositório está com a **Fase 3 concluída**: infraestrutura, motor `/api/gerar`,
-geração DOCX tradicional/Visual Law e entrega privada estão implementados. O portal e a
-autenticação de produto entram na Fase 4, após a decisão conjunta sobre Next.js 15.
+As **Fases 1 a 3 estão concluídas**: infraestrutura multi-tenant, motor de IA em três
+camadas, RAG com guardrail LGPD, geração DOCX tradicional/Visual Law e entrega privada por
+signed URL estão implementados e validados. O baseline foi migrado para Next.js 15 antes da
+Fase 4, que implementará o portal autenticado do advogado.
 
 ## Stack
 
-- Next.js 14, App Router e TypeScript
+- Next.js 15.5.22, App Router, React 19 e TypeScript
 - Supabase Postgres, Auth, Storage, Realtime, RLS e pgvector
 - Função Python interna na Vercel para diagnóstico estrutural do CNIS
 - Anthropic Messages SDK com Haiku/Sonnet e prompt caching explícito

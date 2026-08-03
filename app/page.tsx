@@ -9,7 +9,7 @@ const foundations = [
   },
   {
     title: "Custos controlados",
-    description: "Reservas atômicas de custo e telemetria preparadas para Haiku, Sonnet e prompt caching.",
+    description: "Reservas atômicas de custo e telemetria ativas para Haiku, Sonnet e prompt caching.",
   },
   {
     title: "LGPD desde a origem",
@@ -23,29 +23,29 @@ export default function HomePage() {
       <header className="top-nav">
         <div className="container nav-content">
           <span className="brand">Córtex Previdenciário</span>
-          <Badge>Fase 1</Badge>
+          <Badge>Fases 1–3 concluídas</Badge>
         </div>
       </header>
 
       <section className="hero container">
         <div className="hero-copy">
-          <Badge>Infraestrutura segura</Badge>
+          <Badge>Motor e entrega DOCX validados</Badge>
           <h1>Peças previdenciárias com a identidade do escritório.</h1>
           <p>
-            A fundação técnica está preparada para gerar, revisar e entregar documentos privados sem
-            cruzar dados entre clientes.
+            O motor gera, revisa e entrega documentos privados sem cruzar dados entre escritórios.
           </p>
           <Button disabled>Portal disponível na Fase 4</Button>
         </div>
 
         <Card className="status-card">
           <span className="eyebrow">Status da construção</span>
-          <strong>Repo + Supabase + segurança</strong>
+          <strong>Baseline pronto para o portal</strong>
           <ul>
-            <li>Next.js 14 e TypeScript</li>
+            <li>Next.js 15, React 19 e TypeScript</li>
             <li>pgvector com 1.024 dimensões</li>
             <li>Buckets privados</li>
             <li>RLS por escritório</li>
+            <li>DOCX tradicional e Visual Law</li>
           </ul>
         </Card>
       </section>

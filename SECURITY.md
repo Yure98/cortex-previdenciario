@@ -18,13 +18,13 @@ Todas as tabelas do produto têm RLS. Tabelas internas do motor não oferecem po
 ao usuário. A API resolve `escritorio_id` pela sessão e só então usa service role para executar
 operações administrativas daquele tenant.
 
-## Dependência Next.js 14
+## Baseline Next.js 15
 
-A especificação fixa Next.js 14. A última versão dessa major (`14.2.35`) não recebe correções
-para os advisories atuais; `npm audit --omit=dev` continua reportando uma dependência direta
-de severidade alta e informa `fixAvailable: false` dentro da major.
+O projeto foi migrado para Next.js `15.5.22` e React `19.2.8` antes da implementação do
+portal autenticado da Fase 4. A migração incluiu as APIs assíncronas de request do App Router
+e a revalidação integral do motor e da entrega DOCX.
 
-Mitigações aplicadas enquanto a restrição existir:
+As seguintes medidas de redução de superfície permanecem:
 
 - `next/image` sem otimizador;
 - nenhuma rewrite, middleware/proxy, i18n, WebSocket ou servidor customizado;
@@ -33,10 +33,16 @@ Mitigações aplicadas enquanto a restrição existir:
 - `/api/gerar` roda em Node, limita corpo a 16 KB e sempre responde `Cache-Control: no-store`;
 - nenhuma entrada não confiável em `beforeInteractive` ou nonce CSP.
 
-Essas medidas reduzem superfície, mas não transformam Next.js 14 em uma versão com suporte de
-segurança. Antes de exposição pública, o gate recomendado é migrar para a linha LTS corrigida e
-reexecutar build, testes e auditoria. A migração de major não foi feita porque contraria a fonte
-de verdade aprovada do projeto.
+Atualizações de patch da major 15 devem ser avaliadas regularmente e sempre acompanhadas de
+lint, typecheck, testes, build, auditoria e pgTAP antes de chegar à produção.
+
+### Dependência opcional de imagens
+
+O Next.js `15.5.22` instala `sharp@0.34.5` como dependência opcional. A auditoria atual sinaliza
+advisories herdados do libvips sem versão corrigida disponível. O projeto mantém
+`images.unoptimized: true`, não utiliza a rota de otimização do `next/image` e não envia imagens
+de usuário ao `sharp`. O advisory deve continuar monitorado e a dependência deve ser atualizada
+assim que o Next.js 15 publicar uma versão compatível corrigida.
 
 ## Relato
 

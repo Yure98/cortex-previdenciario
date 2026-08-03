@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import Link from "next/link";
 
 const foundations = [
   {
@@ -23,7 +23,7 @@ export default function HomePage() {
       <header className="top-nav">
         <div className="container nav-content">
           <span className="brand">Córtex Previdenciário</span>
-          <Badge>Fases 1–3 concluídas</Badge>
+          <Badge>Fases 1–4 concluídas</Badge>
         </div>
       </header>
 
@@ -34,12 +34,12 @@ export default function HomePage() {
           <p>
             O motor gera, revisa e entrega documentos privados sem cruzar dados entre escritórios.
           </p>
-          <Button disabled>Portal disponível na Fase 4</Button>
+          <Link className="primary-button link-button" href="/entrar">Acessar o portal</Link>
         </div>
 
         <Card className="status-card">
           <span className="eyebrow">Status da construção</span>
-          <strong>Baseline pronto para o portal</strong>
+          <strong>Portal do advogado disponível</strong>
           <ul>
             <li>Next.js 15, React 19 e TypeScript</li>
             <li>pgvector com 1.024 dimensões</li>

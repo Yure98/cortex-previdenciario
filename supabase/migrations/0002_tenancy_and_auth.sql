@@ -17,6 +17,10 @@ create table public.escritorios (
   teto_gasto_mensal_usd numeric(14, 6) check (
     teto_gasto_mensal_usd is null or teto_gasto_mensal_usd > 0
   ),
+  valor_setup_centavos integer not null default 60000 check (valor_setup_centavos >= 0),
+  dias_ate_primeira_mensalidade integer not null default 30 check (
+    dias_ate_primeira_mensalidade >= 0
+  ),
   franquia_pecas_mensal integer not null default 25 check (franquia_pecas_mensal > 0),
   valor_excedente_centavos integer not null default 2900 check (valor_excedente_centavos >= 0),
   data_onboarding timestamptz,

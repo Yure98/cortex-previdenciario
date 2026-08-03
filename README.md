@@ -136,6 +136,9 @@ O importador sempre força rascunho, remove embeddings recebidos e marca curador
 uma chamada. A Fase 2 ligará esse contrato ao Haiku/Sonnet e registrará input, output,
 cache read, cache creation e custos finais em `uso_tokens`.
 
+Setup, carência, franquia e excedente ficam em colunas protegidas de `escritorios`; clientes
+não recebem `GRANT` para modificar esses valores pelo navegador.
+
 ## Validação
 
 ```bash

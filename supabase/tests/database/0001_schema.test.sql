@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(20);
+select plan(22);
 
 select has_extension('vector', 'pgvector está habilitado');
 select has_table('public', 'escritorios', 'tabela escritorios existe');
@@ -66,6 +66,14 @@ select results_eq(
 select col_type_is('public', 'uso_tokens', 'custo_usd', 'numeric(18,10)', 'custo USD usa decimal');
 select col_type_is('public', 'escritorios', 'franquia_pecas_mensal', 'integer', 'franquia usa inteiro');
 select col_default_is('public', 'escritorios', 'franquia_pecas_mensal', '25', 'franquia padrão é 25');
+select col_default_is('public', 'escritorios', 'valor_setup_centavos', '60000', 'setup padrão é R$ 600');
+select col_default_is(
+  'public',
+  'escritorios',
+  'dias_ate_primeira_mensalidade',
+  '30',
+  'primeira mensalidade começa após 30 dias'
+);
 
 select * from finish();
 rollback;

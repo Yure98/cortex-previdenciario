@@ -60,6 +60,8 @@ describe("contrato das migrations", () => {
   });
 
   it("configura os valores comerciais aprovados", () => {
+    expect(sql).toContain("valor_setup_centavos integer not null default 60000");
+    expect(sql).toContain("dias_ate_primeira_mensalidade integer not null default 30");
     expect(sql).toContain("franquia_pecas_mensal integer not null default 25");
     expect(sql).toContain("valor_excedente_centavos integer not null default 2900");
     expect(sql).toContain("valor_centavos integer not null default 39700");

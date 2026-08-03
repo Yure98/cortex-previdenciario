@@ -2,10 +2,10 @@
 
 SaaS self-service para gerar peças previdenciárias em `.docx` no timbrado do escritório.
 
-As **Fases 1 a 3 estão concluídas**: infraestrutura multi-tenant, motor de IA em três
+As **Fases 1 a 4 estão concluídas localmente**: infraestrutura multi-tenant, motor de IA em três
 camadas, RAG com guardrail LGPD, geração DOCX tradicional/Visual Law e entrega privada por
-signed URL estão implementados e validados. O baseline foi migrado para Next.js 15 antes da
-Fase 4, que implementará o portal autenticado do advogado.
+signed URL, além do portal autenticado do advogado, estão implementados e validados. O baseline
+foi migrado para Next.js 15 antes da superfície de autenticação.
 
 ## Stack
 
@@ -221,8 +221,26 @@ npm run docx:qa -- caminho/timbrado.docx caminho/saida
 ```
 
 Templates com variantes de cabeçalho recebem o aviso
-`CABECALHO_COM_VARIANTES_REVISAR_PREVIEW`. No onboarding da Fase 4, o escritório será orientado
+`CABECALHO_COM_VARIANTES_REVISAR_PREVIEW`. No onboarding, o escritório é orientado
 a revisar possível sobreposição; o produto não redesenha automaticamente o timbrado.
+
+## Portal do advogado — Fase 4
+
+- cadastro, login, logout, confirmação por e-mail e recuperação de senha via Supabase Auth;
+- middleware renova a sessão e protege todas as rotas `/portal`;
+- onboarding curto em três etapas para dados do escritório, cores, NotebookLM opcional e
+  timbrado DOCX, com progresso de upload e preflight antes de ativar o escritório;
+- criação de caso em três etapas com CNIS PDF, fatos, pedidos, opção de jurisprudência e formato
+  tradicional/Visual Law;
+- dashboard, lista de casos com atualização Realtime e detalhe com teses, requisitos e provas;
+- `[CONFERIR]` destacado em amarelo e alerta permanente de revisão profissional;
+- plano e uso exibem franquia mensal, saldo, excedentes pagos e histórico de faturas;
+- download passa por autorização do tenant no servidor e redireciona para signed URL de curta
+  duração; nenhum bucket foi tornado público.
+
+Uploads autenticados validam origem, limite de 50 MB, extensão, MIME e assinatura binária. O
+navegador não envia `escritorio_id`: o tenant é sempre resolvido pela sessão e confirmado antes
+de qualquer uso da service role.
 
 ## Diagnóstico determinístico do CNIS
 

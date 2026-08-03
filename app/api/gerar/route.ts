@@ -17,6 +17,7 @@ import { generateDeliveryDocx } from "@/lib/docx/generator";
 import { preflightTemplate } from "@/lib/docx/preflight";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasSameOrigin } from "@/lib/portal/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,6 +115,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   let repository: EngineRepository | null = null;
 
   try {
+    if (!hasSameOrigin(request)) {
+      throw new EngineError("ACESSO_NEGADO", "Origem da requisição não permitida.");
+    }
     const contentLength = Number(request.headers.get("content-length") ?? "0");
     if (contentLength > 16 * 1024) {
       throw new EngineError("REQUISICAO_INVALIDA", "O corpo da requisição excede 16 KB.");

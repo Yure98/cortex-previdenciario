@@ -5,6 +5,46 @@ alter table public.entregas
   add column platform_revisado_por uuid references auth.users(id) on delete set null,
   add column revisado_em timestamptz;
 
+create or replace function public.audit_caso_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_usuario_id uuid := (select auth.uid());
+  v_platform_admin boolean := public.is_platform_admin();
+begin
+  if old.status is distinct from new.status then
+    insert into public.auditoria (
+      escritorio_id,
+      caso_id,
+      evento,
+      autor_usuario_id,
+      autor,
+      metadata
+    ) values (
+      new.escritorio_id,
+      new.id,
+      'caso.status_alterado',
+      case when v_platform_admin then null else v_usuario_id end,
+      case
+        when v_usuario_id is null then 'sistema'
+        when v_platform_admin then 'platform_admin'
+        else 'usuario'
+      end,
+      jsonb_build_object('de', old.status, 'para', new.status)
+        || case
+          when v_platform_admin then jsonb_build_object('platform_admin_id', v_usuario_id)
+          else '{}'::jsonb
+        end
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
 create or replace function public.admin_atualizar_status_caso(p_caso_id uuid, p_status public.caso_status)
 returns void language plpgsql security definer set search_path = '' as $$
 declare v_caso public.casos%rowtype;

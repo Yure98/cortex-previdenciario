@@ -1,0 +1,39 @@
+# dependencies
+/node_modules
+
+# next
+/.next
+/out
+
+# tests
+/coverage
+/playwright-report
+/test-results
+
+# local environments and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# supabase local state
+/supabase/.branches
+/supabase/.temp
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+
+# editors and OS
+.DS_Store
+*.swp
+
+# Vercel
+.vercel
+
+# uploaded source documents live outside this repository
+/upload
+
+# TypeScript
+*.tsbuildinfo

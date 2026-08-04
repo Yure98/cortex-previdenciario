@@ -28,6 +28,7 @@ const rlsTables = [
   "consumos_peca",
   "creditos_peca",
   "webhook_eventos",
+  "rate_limit_buckets",
 ];
 
 describe("contrato das migrations", () => {
@@ -47,6 +48,7 @@ describe("contrato das migrations", () => {
       "0012_phase3_docx_delivery.sql",
       "0013_phase5_admin_qa.sql",
       "0014_phase6_billing.sql",
+      "0015_phase7_observability_rate_limits.sql",
     ]);
   });
 
@@ -117,5 +119,14 @@ describe("contrato das migrations", () => {
     expect(sql).toContain("on conflict (asaas_event_id) do nothing");
     expect(sql).toContain("revoke all on public.creditos_peca from public, anon, authenticated");
     expect(sql).toContain("grant select on public.creditos_peca to authenticated");
+  });
+
+  it("mantém rate limiting atômico e invisível ao navegador", () => {
+    expect(sql).toContain("create table public.rate_limit_buckets");
+    expect(sql).toContain("create or replace function public.consumir_rate_limit");
+    expect(sql).toContain("pg_advisory_xact_lock");
+    expect(sql).toContain("chave_hash ~ '^[0-9a-f]{64}$'");
+    expect(sql).toContain("revoke all on public.rate_limit_buckets from public, anon, authenticated");
+    expect(sql).toContain("grant execute on function public.consumir_rate_limit(text, text, integer, integer)");
   });
 });

@@ -40,3 +40,11 @@ jobs:
       - run: npm run test:sql
       - if: always()
         run: npx supabase stop --no-backup
+      - name: Alertar falha do banco
+        if: failure()
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          OPS_ALERT_EMAIL: ${{ secrets.OPS_ALERT_EMAIL }}
+        run: node scripts/send-ci-alert.mjs

@@ -18,7 +18,10 @@ import { preflightTemplate } from "@/lib/docx/preflight";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { notifyUsageThreshold, sendOfficeNotification } from "@/lib/notifications/email";
+import { alertGlobalSpend, recordGenerationFailure } from "@/lib/observability/alerts";
+import { logInfo, logWarn } from "@/lib/observability/logger";
 import { hasSameOrigin } from "@/lib/portal/validation";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,8 +116,13 @@ async function authenticatedIdentity(): Promise<{ escritorioId: string; papel: "
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const startedAt = Date.now();
+  let requestId: string = randomUUID();
+  let casoId: string | undefined;
+  let escritorioId: string | undefined;
   let geracaoId: string | null = null;
   let repository: EngineRepository | null = null;
+  let admin: ReturnType<typeof createSupabaseAdminClient> | null = null;
 
   try {
     if (!hasSameOrigin(request)) {
@@ -125,20 +133,48 @@ export async function POST(request: Request): Promise<NextResponse> {
       throw new EngineError("REQUISICAO_INVALIDA", "O corpo da requisição excede 16 KB.");
     }
     const body = generationRequestSchema.parse(await request.json());
+    casoId = body.caso_id;
     const identity = await authenticatedIdentity();
-    const escritorioId = body.escritorio_id && identity.papel === "platform_admin" ? body.escritorio_id : identity.escritorioId;
+    escritorioId = body.escritorio_id && identity.papel === "platform_admin" ? body.escritorio_id : identity.escritorioId;
 
     if (body.escritorio_id && identity.papel !== "platform_admin" && body.escritorio_id !== identity.escritorioId) {
       throw new EngineError("ACESSO_NEGADO", "O escritório informado não pertence ao usuário.");
     }
 
     const idempotencyHeader = request.headers.get("idempotency-key");
-    const requestId = idempotencyHeader
+    requestId = idempotencyHeader
       ? idempotencyKeySchema.parse(idempotencyHeader)
-      : randomUUID();
+      : requestId;
     const environment = getEngineEnvironment();
-    const admin = createSupabaseAdminClient();
+    admin = createSupabaseAdminClient();
     repository = new EngineRepository(admin);
+
+    const rateLimit = await consumeRateLimit({
+      admin,
+      scope: "api:gerar:escritorio",
+      identifier: escritorioId,
+      limit: 10,
+      windowSeconds: 60,
+    });
+    if (!rateLimit.allowed) {
+      logWarn({
+        event: "generation_rate_limited",
+        route: "/api/gerar",
+        request_id: requestId,
+        caso_id: casoId,
+        escritorio_id: escritorioId,
+        status: 429,
+        retry_after_seconds: rateLimit.retryAfterSeconds,
+      });
+      throw new EngineError("LIMITE_TAXA", "Muitas gerações em sequência. Aguarde e tente novamente.", { retryable: true });
+    }
+    logInfo({
+      event: "generation_started",
+      route: "/api/gerar",
+      request_id: requestId,
+      caso_id: casoId,
+      escritorio_id: escritorioId,
+    });
 
     const existing = await repository.findByRequestId(requestId, escritorioId);
     if (existing) {
@@ -148,12 +184,23 @@ export async function POST(request: Request): Promise<NextResponse> {
           "A chave de idempotência já pertence a outro caso.",
         );
       }
-      return existingResponse(
+      const response = await existingResponse(
         existing,
         repository,
         escritorioId,
         environment.ENTREGA_SIGNED_URL_TTL_SECONDS,
       );
+      logInfo({
+        event: "generation_idempotent",
+        route: "/api/gerar",
+        request_id: requestId,
+        caso_id: casoId,
+        escritorio_id: escritorioId,
+        geracao_id: existing.id,
+        status: response.status,
+        duration_ms: Date.now() - startedAt,
+      });
+      return response;
     }
 
     const caso = await repository.loadCase(body.caso_id, escritorioId);
@@ -254,11 +301,32 @@ export async function POST(request: Request): Promise<NextResponse> {
       sendOfficeNotification({ kind: "peca_pronta", escritorioId, admin }),
       notifyUsageThreshold(escritorioId, admin),
     ]);
+    try {
+      const globalSpend = await repository.getGlobalMonthlySpendUsd();
+      await alertGlobalSpend({
+        admin,
+        requestId,
+        spendRatio: globalSpend / environment.LIMITE_GASTO_MENSAL_USD,
+      });
+    } catch {
+      logWarn({ event: "global_spend_alert_check_failed", request_id: requestId, code: "GLOBAL_SPEND_CHECK" });
+    }
     const access = await repository.createSignedDeliveryUrl(
       delivery.storagePath,
       environment.ENTREGA_SIGNED_URL_TTL_SECONDS,
     );
 
+    logInfo({
+      event: "generation_completed",
+      route: "/api/gerar",
+      request_id: requestId,
+      caso_id: casoId,
+      escritorio_id: escritorioId,
+      geracao_id: geracaoId,
+      status: 200,
+      duration_ms: Date.now() - startedAt,
+      cost_usd: costs.usd,
+    });
     return jsonNoStore({
       geracao_id: geracaoId,
       caso_id: body.caso_id,
@@ -292,6 +360,29 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     if (repository && geracaoId) {
       await repository.fail(geracaoId, normalized.code, normalized.message);
+    }
+
+    if (admin && normalized.status >= 500) {
+      await recordGenerationFailure({
+        admin,
+        requestId,
+        casoId,
+        escritorioId,
+        geracaoId: geracaoId ?? undefined,
+        code: normalized.code,
+      });
+    } else {
+      logWarn({
+        event: "generation_rejected",
+        route: "/api/gerar",
+        request_id: requestId,
+        caso_id: casoId,
+        escritorio_id: escritorioId,
+        geracao_id: geracaoId ?? undefined,
+        code: normalized.code,
+        status: normalized.status,
+        duration_ms: Date.now() - startedAt,
+      });
     }
 
     return jsonNoStore(

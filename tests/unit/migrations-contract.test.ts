@@ -26,6 +26,8 @@ const rlsTables = [
   "uso_tokens",
   "geracoes",
   "consumos_peca",
+  "creditos_peca",
+  "webhook_eventos",
 ];
 
 describe("contrato das migrations", () => {
@@ -44,6 +46,7 @@ describe("contrato das migrations", () => {
       "0011_phase2_engine.sql",
       "0012_phase3_docx_delivery.sql",
       "0013_phase5_admin_qa.sql",
+      "0014_phase6_billing.sql",
     ]);
   });
 
@@ -106,4 +109,13 @@ describe("contrato das migrations", () => {
   });
 
   it("protege QA administrativo por papel",()=>{expect(sql).toContain("public.admin_revisar_entrega");expect(sql).toContain("public.admin_atualizar_status_caso");expect(sql.match(/if not public\.is_platform_admin\(\) then/g)).toHaveLength(2);expect(sql).not.toMatch(/@[a-z0-9.-]+\.[a-z]{2,}/i);});
+
+  it("mantém cobrança idempotente, em centavos e sem escrita pelo navegador", () => {
+    expect(sql).toContain("asaas_event_id text not null unique");
+    expect(sql).toContain("p_valor_centavos integer");
+    expect(sql).toContain("create or replace function public.processar_evento_asaas");
+    expect(sql).toContain("on conflict (asaas_event_id) do nothing");
+    expect(sql).toContain("revoke all on public.creditos_peca from public, anon, authenticated");
+    expect(sql).toContain("grant select on public.creditos_peca to authenticated");
+  });
 });

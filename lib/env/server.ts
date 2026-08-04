@@ -11,7 +11,10 @@ const serverEnvironmentSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE: z.string().min(1),
   ASAAS_API_KEY: z.string().min(1),
+  ASAAS_WEBHOOK_TOKEN: z.string().min(32),
+  ASAAS_ENVIRONMENT: z.literal("sandbox"),
   RESEND_API_KEY: z.string().min(1),
+  RESEND_FROM_EMAIL: z.string().email(),
   MODELO_SONNET: z.string().min(1),
   MODELO_HAIKU: z.string().min(1),
   LIMITE_GASTO_MENSAL_USD: z.coerce.number().positive(),
@@ -52,6 +55,8 @@ const engineEnvironmentSchema = serverEnvironmentSchema.pick({
 
 export type ServerEnvironment = z.infer<typeof serverEnvironmentSchema>;
 export type EngineEnvironment = z.infer<typeof engineEnvironmentSchema>;
+export type BillingEnvironment = Pick<ServerEnvironment, "ASAAS_API_KEY" | "ASAAS_WEBHOOK_TOKEN" | "ASAAS_ENVIRONMENT" | "APP_URL">;
+export type NotificationEnvironment = Pick<ServerEnvironment, "RESEND_API_KEY" | "RESEND_FROM_EMAIL" | "APP_URL">;
 
 export function getServerEnvironment(): ServerEnvironment {
   return serverEnvironmentSchema.parse(process.env);
@@ -59,4 +64,13 @@ export function getServerEnvironment(): ServerEnvironment {
 
 export function getEngineEnvironment(): EngineEnvironment {
   return engineEnvironmentSchema.parse(process.env);
+}
+
+export function getBillingEnvironment(): BillingEnvironment {
+  const env = serverEnvironmentSchema.pick({ ASAAS_API_KEY: true, ASAAS_WEBHOOK_TOKEN: true, ASAAS_ENVIRONMENT: true, APP_URL: true }).parse(process.env);
+  return env;
+}
+
+export function getNotificationEnvironment(): NotificationEnvironment {
+  return serverEnvironmentSchema.pick({ RESEND_API_KEY: true, RESEND_FROM_EMAIL: true, APP_URL: true }).parse(process.env);
 }

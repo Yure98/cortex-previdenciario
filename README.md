@@ -2,12 +2,13 @@
 
 SaaS self-service para gerar peças previdenciárias em `.docx` no timbrado do escritório.
 
-As **Fases 1 a 5 estão concluídas** e a Fase 6 está implementada para validação em sandbox: infraestrutura multi-tenant, motor de IA em três
+As **Fases 1 a 6 estão concluídas** e a Fase 7 está em preparação para o deploy real: infraestrutura multi-tenant, motor de IA em três
 camadas, RAG com guardrail LGPD, geração DOCX tradicional/Visual Law e entrega privada por
 signed URL, além do portal autenticado do advogado, estão implementados e validados. O baseline
 foi migrado para Next.js 15 antes da superfície de autenticação. A Fase 5 adiciona o painel
 administrativo, a fila Kanban e o gate humano de QA. A Fase 6 integra cobrança Asaas idempotente,
-reconciliação administrativa e seis notificações transacionais pelo Resend.
+reconciliação administrativa e seis notificações transacionais pelo Resend. A Fase 7 adiciona
+Node.js 22, observabilidade sanitizada e rate limiting persistente antes da configuração externa.
 
 ## Stack
 
@@ -21,7 +22,7 @@ reconciliação administrativa e seis notificações transacionais pelo Resend.
 
 ## Requisitos
 
-- Node.js 20+
+- Node.js 22.x
 - npm
 - Git com suporte a submódulos
 - Docker Desktop para executar o Supabase local
@@ -67,6 +68,8 @@ Variáveis obrigatórias do produto:
 - `VOYAGE_API_KEY`, `MODELO_EMBEDDING=voyage-4`
 - `COTACAO_USD_BRL`, `LIMITE_CUSTO_PECA_BRL=3.00`
 - `ENTREGA_SIGNED_URL_TTL_SECONDS=300` (aceita de 60 a 900 segundos)
+- `RATE_LIMIT_HASH_SECRET` (mínimo de 32 caracteres; diferente por ambiente)
+- `OPS_ALERT_EMAIL` (destinatário operacional próprio; sem endereço hardcoded)
 - `INTERNAL_PYTHON_TOKEN` (mínimo de 32 caracteres) e `PYTHON_DIAGNOSTICO_URL`
 - preços por MTok de Sonnet, Haiku e Voyage listados no `.env.example`
 
@@ -95,6 +98,7 @@ As migrations ficam em `supabase/migrations` e rodam em ordem:
 12. metadados DOCX, hash/preflight e conclusão transacional da entrega;
 13. autorização administrativa, QA e entrega auditada.
 14. customer/pagamentos Asaas, eventos idempotentes, créditos de peças e RLS de cobrança.
+15. buckets atômicos de rate limiting, internos ao `service_role`, sem IP ou e-mail em claro.
 
 Execute:
 
@@ -105,7 +109,23 @@ npm run test:sql
 ```
 
 Os testes pgTAP criam escritórios isolados e comprovam que um usuário não lê casos, entregas,
-faturas nem créditos de outro tenant.
+faturas nem créditos de outro tenant. Também comprovam que usuários autenticados não leem nem
+executam a infraestrutura interna de rate limiting.
+
+## Observabilidade e rate limiting — Fase 7
+
+- Login, cadastro e recuperação possuem limites combinados por IP e e-mail, ambos hasheados por
+  HMAC antes de chegar ao banco.
+- `/api/gerar` limita rajadas por escritório e o webhook Asaas limita chamadas autenticadas por IP.
+- O hook `instrumentation.ts` cobre erros não tratados de rotas e Server Actions.
+- Geração, webhook e download emitem logs JSON por allowlist; corpo, CNIS, fatos, e-mail, tokens e
+  signed URLs não fazem parte do tipo aceito pelo logger.
+- O bundle cliente é inspecionado automaticamente após cada `next build` contra os valores dos
+  segredos presentes no ambiente.
+- Alertas operacionais usam o Resend e `OPS_ALERT_EMAIL`, sem endereço hardcoded.
+
+O procedimento de produção, a promoção segura do primeiro `platform_admin` e o smoke test estão em
+[`docs/phase7-deployment-runbook.md`](docs/phase7-deployment-runbook.md).
 
 ## Segurança multi-tenant
 

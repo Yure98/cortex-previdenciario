@@ -28,6 +28,8 @@ const serverEnvironmentSchema = z.object({
   MODELO_EMBEDDING: z.literal("voyage-4"),
   PRECO_VOYAGE_INPUT_USD_MTOK: z.coerce.number().positive(),
   ENTREGA_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(300),
+  RATE_LIMIT_HASH_SECRET: z.string().min(32),
+  OPS_ALERT_EMAIL: z.string().email().optional(),
 });
 
 const engineEnvironmentSchema = serverEnvironmentSchema.pick({

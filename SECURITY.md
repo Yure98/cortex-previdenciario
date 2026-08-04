@@ -48,3 +48,21 @@ assim que o Next.js 15 publicar uma versão compatível corrigida.
 
 Não inclua CPF, NIT, CNIS, chaves ou URLs assinadas em issues. Envie relatos de segurança por
 canal privado ao proprietário do repositório.
+
+## Observabilidade e limitação de taxa
+
+- Logs operacionais usam uma lista fechada de metadados técnicos. Corpo de requisição, e-mail,
+  telefone, CNIS, fatos, prompts, conteúdo jurídico, tokens e URLs assinadas não fazem parte do
+  tipo aceito pelo logger.
+- Chaves do rate limiter são HMAC-SHA256 calculados exclusivamente no servidor com
+  `RATE_LIMIT_HASH_SECRET`; IP e e-mail em claro não são persistidos.
+- A tabela `rate_limit_buckets` tem RLS e não concede leitura nem execução a `anon` ou
+  `authenticated`. Somente `service_role` chama a função atômica.
+- Login, cadastro, recuperação, geração e webhook Asaas têm limites na aplicação. O webhook deve
+  receber também uma regra de rate limit na borda da Vercel antes do go-live, para bloquear tráfego
+  inválido antes de alocar uma função.
+- O hook `instrumentation.ts` registra erros não tratados sem serializar o objeto de erro ou a
+  requisição. Alertas enviados pelo Resend recebem somente o mesmo conjunto reduzido de
+  identificadores; o destinatário vem de `OPS_ALERT_EMAIL`, nunca do código.
+- O pós-build procura os valores reais dos segredos configurados em `.next/static`; o build falha
+  se encontrar qualquer um deles no bundle cliente.

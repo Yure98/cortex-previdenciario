@@ -272,6 +272,16 @@ export class EngineRepository {
     return { usd, brl: usd * usdBrlRate };
   }
 
+  async getGlobalMonthlySpendUsd(): Promise<number> {
+    const { data, error } = await this.admin.rpc("gasto_global_mes_usd");
+    if (error) {
+      throw new EngineError("ERRO_INTERNO", "Não foi possível consultar o gasto global.", {
+        cause: error,
+      });
+    }
+    return z.coerce.number().nonnegative().parse(data);
+  }
+
   async publishDelivery(
     geracaoId: string,
     delivery: GeneratedDocx,

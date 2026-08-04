@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 import { preflightTemplate } from "@/lib/docx/preflight";
 import { getApiIdentity } from "@/lib/auth/api";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { provisionOfficeBilling } from "@/lib/billing/provisioning";
+import { sendOfficeNotification } from "@/lib/notifications/email";
 import { assertUpload, DOCX_MIME, hasSameOrigin, hasZipSignature, MAX_UPLOAD_BYTES, onboardingSchema } from "@/lib/portal/validation";
 
 export const runtime = "nodejs";
@@ -47,12 +49,14 @@ export async function POST(request: Request) {
       nome: parsed.nome, oab: parsed.oab || null, cidade: parsed.cidade || null,
       notebooklm_url: parsed.notebooklmUrl || null, cor_primaria: parsed.corPrimaria,
       cor_secundaria: parsed.corSecundaria, cor_acento: parsed.corAcento,
-      timbrado_path: uploadedPath, status: "ativo", data_onboarding: new Date().toISOString(),
+      timbrado_path: uploadedPath, status: "onboarding", data_onboarding: new Date().toISOString(),
     }).eq("id", identity.escritorioId);
     if (officeError) throw officeError;
+    await provisionOfficeBilling({ escritorioId: identity.escritorioId, officeName: parsed.nome, email: identity.email, admin });
     if (previous?.timbrado_path && previous.timbrado_path !== uploadedPath) await admin.storage.from("timbrados").remove([previous.timbrado_path]);
+    await sendOfficeNotification({ kind: "onboarding_concluido", escritorioId: identity.escritorioId, admin });
 
-    return response({ ok: true, avisos: preflight.report.warnings });
+    return response({ ok: true, cobranca: "setup_pendente", ambiente: "sandbox", avisos: preflight.report.warnings });
   } catch (error) {
     if (uploadedPath) await createSupabaseAdminClient().storage.from("timbrados").remove([uploadedPath]);
     const message = error instanceof Error && error.message.startsWith("ARQUIVO_") ? "O timbrado deve ser um DOCX válido de até 50 MB." : "Não foi possível validar e salvar o timbrado.";

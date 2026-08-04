@@ -2,11 +2,12 @@
 
 SaaS self-service para gerar peças previdenciárias em `.docx` no timbrado do escritório.
 
-As **Fases 1 a 5 estão concluídas localmente**: infraestrutura multi-tenant, motor de IA em três
+As **Fases 1 a 5 estão concluídas** e a Fase 6 está implementada para validação em sandbox: infraestrutura multi-tenant, motor de IA em três
 camadas, RAG com guardrail LGPD, geração DOCX tradicional/Visual Law e entrega privada por
 signed URL, além do portal autenticado do advogado, estão implementados e validados. O baseline
 foi migrado para Next.js 15 antes da superfície de autenticação. A Fase 5 adiciona o painel
-administrativo, a fila Kanban e o gate humano de QA.
+administrativo, a fila Kanban e o gate humano de QA. A Fase 6 integra cobrança Asaas idempotente,
+reconciliação administrativa e seis notificações transacionais pelo Resend.
 
 ## Stack
 
@@ -15,7 +16,7 @@ administrativo, a fila Kanban e o gate humano de QA.
 - Função Python interna na Vercel para diagnóstico estrutural do CNIS
 - Anthropic Messages SDK com Haiku/Sonnet e prompt caching explícito
 - Voyage `voyage-4` com embeddings de 1.024 dimensões
-- Asaas e Resend entram funcionalmente nas fases seguintes
+- Asaas sandbox para setup, assinatura e peças extras; Resend para notificações sem dados sensíveis
 - Cal Sans para display; Inter para corpo/UI; JetBrains Mono para código
 
 ## Requisitos
@@ -59,7 +60,7 @@ Variáveis obrigatórias do produto:
 - `ANTHROPIC_API_KEY`
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE`
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`
+- `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`, `ASAAS_ENVIRONMENT=sandbox`
 - `RESEND_API_KEY`, `RESEND_FROM_EMAIL`
 - `MODELO_SONNET`, `MODELO_HAIKU`
 - `LIMITE_GASTO_MENSAL_USD`
@@ -93,6 +94,7 @@ As migrations ficam em `supabase/migrations` e rodam em ordem:
 11. execuções do motor, consumo de peças, locks comerciais e conclusão/falha atômicas.
 12. metadados DOCX, hash/preflight e conclusão transacional da entrega;
 13. autorização administrativa, QA e entrega auditada.
+14. customer/pagamentos Asaas, eventos idempotentes, créditos de peças e RLS de cobrança.
 
 Execute:
 
@@ -102,8 +104,8 @@ npm run sql:lint
 npm run test:sql
 ```
 
-Os testes pgTAP criam dois escritórios e comprovam que um usuário não lê o caso nem a entrega
-do outro.
+Os testes pgTAP criam escritórios isolados e comprovam que um usuário não lê casos, entregas,
+faturas nem créditos de outro tenant.
 
 ## Segurança multi-tenant
 

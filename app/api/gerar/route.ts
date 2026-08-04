@@ -17,6 +17,7 @@ import { generateDeliveryDocx } from "@/lib/docx/generator";
 import { preflightTemplate } from "@/lib/docx/preflight";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { notifyUsageThreshold, sendOfficeNotification } from "@/lib/notifications/email";
 import { hasSameOrigin } from "@/lib/portal/validation";
 
 export const runtime = "nodejs";
@@ -249,6 +250,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     const costs = await repository.calculateCosts(requestId, environment.COTACAO_USD_BRL);
     await repository.publishDelivery(geracaoId, delivery, costs);
+    await Promise.allSettled([
+      sendOfficeNotification({ kind: "peca_pronta", escritorioId, admin }),
+      notifyUsageThreshold(escritorioId, admin),
+    ]);
     const access = await repository.createSignedDeliveryUrl(
       delivery.storagePath,
       environment.ENTREGA_SIGNED_URL_TTL_SECONDS,
